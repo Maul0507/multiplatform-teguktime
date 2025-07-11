@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/artikel_model.dart';
 
 class ArtikelService {
-  final String baseUrl = 'https://your-api-url.com/api'; // Ganti dengan base URL API kamu
+  final String baseUrl = ' https://6b36e71c2e32.ngrok-free.app/api'; // Ganti dengan base URL API kamu
 
   // GET semua artikel
   Future<List<ArtikelModel>> fetchArtikelList() async {

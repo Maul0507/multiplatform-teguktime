@@ -4,7 +4,7 @@ import '../models/schedules_model.dart';
 
 class SchedulesService {
   final String baseUrl =
-      'https://your-api-url.com/api'; // Ganti URL sesuai backend kamu
+      ' https://6b36e71c2e32.ngrok-free.app/api'; // Ganti URL sesuai backend kamu
 
   // GET semua jadwal (opsional: bisa tambahkan filter user_id)
   Future<List<SchedulesModel>> fetchSchedules({int? userId}) async {

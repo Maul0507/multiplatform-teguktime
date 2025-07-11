@@ -11,6 +11,18 @@ class UserService {
   // 🔐 AUTH SECTION
   // ================================
 
+  /// Simpan token ke SharedPreferences
+  Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+  }
+
+  /// Ambil token dari SharedPreferences
+  Future<String?> loadToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
   Future<User> login(String email, String password) async {
     final response = await http.post(
       Uri.parse(ApiConfig.login),
@@ -23,8 +35,9 @@ class UserService {
       final token = data['token'] ?? data['access_token'];
       final user = User.fromJson(data['user_data']);
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', token);
+      if (token != null) {
+        await saveToken(token);
+      }
 
       return user;
     } else {
@@ -52,9 +65,8 @@ class UserService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       final token = data['access_token'] ?? data['token'];
-      final prefs = await SharedPreferences.getInstance();
       if (token != null) {
-        await prefs.setString('token', token);
+        await saveToken(token);
       }
       return data['message'] ?? 'Registrasi berhasil';
     } else {
@@ -64,8 +76,7 @@ class UserService {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await loadToken();
 
     if (token != null) {
       await http.post(
@@ -77,21 +88,21 @@ class UserService {
       );
     }
 
+    final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
   }
 
   Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey('token');
+    final token = await loadToken();
+    return token != null;
   }
 
   Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
+    return await loadToken();
   }
 
   Future<User> getCurrentUser() async {
-    final token = await getToken();
+    final token = await loadToken();
     if (token == null) throw Exception('Token tidak ditemukan');
 
     final response = await http.get(
@@ -112,7 +123,7 @@ class UserService {
   // ================================
 
   Future<List<User>> fetchUsers() async {
-    final token = await getToken();
+    final token = await loadToken();
     if (token == null) throw Exception('Token tidak ditemukan');
 
     final response = await http.get(
@@ -129,7 +140,7 @@ class UserService {
   }
 
   Future<User> getUserById(int id) async {
-    final token = await getToken();
+    final token = await loadToken();
     if (token == null) throw Exception('Token tidak ditemukan');
 
     final response = await http.get(
@@ -145,7 +156,7 @@ class UserService {
   }
 
   Future<User> createUser(User user) async {
-    final token = await getToken();
+    final token = await loadToken();
     if (token == null) throw Exception('Token tidak ditemukan');
 
     final response = await http.post(
@@ -165,7 +176,7 @@ class UserService {
   }
 
   Future<User> updateUser(User user) async {
-    final token = await getToken();
+    final token = await loadToken();
     if (token == null) throw Exception('Token tidak ditemukan');
 
     final response = await http.put(
@@ -187,7 +198,7 @@ class UserService {
   }
 
   Future<void> deleteUser(int id) async {
-    final token = await getToken();
+    final token = await loadToken();
     if (token == null) throw Exception('Token tidak ditemukan');
 
     final response = await http.delete(

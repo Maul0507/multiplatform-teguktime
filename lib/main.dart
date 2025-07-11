@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:percent_indicator/percent_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -42,8 +41,11 @@ class WaterReminderApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.white,
       ),
-      routes: {'/': (context) => LoginScreen()},
       initialRoute: '/',
+      routes: {
+        '/': (context) => LoginScreen(),
+        '/home': (context) => BottomNavController(),
+      },
     );
   }
 }
@@ -62,14 +64,17 @@ class _BottomNavControllerState extends State<BottomNavController> {
     final List<Widget> _pages = [
       WaterReminderScreen(key: _homeKey),
       IntensitasScreen(
-        onReturnToHome: () => setState(() => _selectedIndex = 0),
-        onTargetCalculated: (ml) async {
-          // Ubah target dan simpan
-          _homeKey.currentState?.setTarget(ml);
-          _homeKey.currentState?.addAutoDrink(ml);
+        onReturnToHome: () async {
+          setState(() => _selectedIndex = 0);
+          final intensitasProvider = Provider.of<IntensitasProvider>(
+            _homeKey.currentContext!,
+            listen: false,
+          );
+          final target = intensitasProvider.targetAir;
+          print("ini target $target");
 
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setDouble('dailyTarget', ml);
+          await prefs.setDouble('dailyTarget', target!.toDouble());
         },
       ),
       RiwayatScreen(),
@@ -86,10 +91,7 @@ class _BottomNavControllerState extends State<BottomNavController> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.opacity),
-            label: 'Intensitas',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.opacity), label: 'Intensitas'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Riwayat'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
@@ -107,11 +109,11 @@ class WaterReminderScreen extends StatefulWidget {
 
 class WaterReminderScreenState extends State<WaterReminderScreen> {
   double _progress = 0.0;
-  double _goal = 0.0;
   List<Map<String, dynamic>> _logs = [];
   final PageController _pageController = PageController(viewportFraction: 0.9);
   int _currentPage = 0;
-  late Timer _timer;
+  late Timer _sliderTimer;
+  late Timer _cleanupTimer;
 
   final List<String> _images = [
     'assets/images/slide1.png',
@@ -119,14 +121,18 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
     'assets/images/slide3.png',
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _startSlider();
-    _removeExpiredLogs();
-  }
+ @override
+void initState() {
+  super.initState();
+  _startSlider();
+  _removeExpiredLogs();
+  _cleanupTimer = Timer.periodic(
+    Duration(minutes: 1),
+    (_) => _removeExpiredLogs(),
+  );
+  _loadSavedTarget(); // Pindah ke sini
+}
 
-  // ✅ Tambahkan ini agar target diperbarui setiap kali kembali ke layar Home
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -134,7 +140,7 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
   }
 
   void _startSlider() {
-    _timer = Timer.periodic(Duration(seconds: 3), (timer) {
+    _sliderTimer = Timer.periodic(Duration(seconds: 3), (timer) {
       _currentPage = (_currentPage + 1) % _images.length;
       _pageController.animateToPage(
         _currentPage,
@@ -145,24 +151,30 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
   }
 
   void _removeExpiredLogs() {
-    Timer.periodic(Duration(minutes: 1), (_) {
-      final now = DateTime.now();
-      setState(() {
-        _logs.removeWhere((log) => log['time'].day != now.day);
-        _progress = _logs.fold(0, (sum, log) => sum + log['amount']);
+    final now = DateTime.now();
+    setState(() {
+      _logs.removeWhere((log) {
+        final logTime = log['time'] as DateTime;
+        final isToday = logTime.day == now.day &&
+            logTime.month == now.month &&
+            logTime.year == now.year;
+        final isPast = logTime.isBefore(now);
+        return isToday && isPast;
       });
+      _progress = _logs.fold(0.0, (sum, log) => sum + log['amount']);
     });
   }
 
   void _loadSavedTarget() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedTarget = prefs.getDouble('dailyTarget');
-    if (savedTarget != null) {
-      setState(() {
-        _goal = savedTarget;
-      });
-    }
+  final provider = Provider.of<IntensitasProvider>(context, listen: false);
+  final prefs = await SharedPreferences.getInstance();
+  final savedTarget = prefs.getDouble('dailyTarget');
+  print('Loaded target: $savedTarget');
+  if (savedTarget != null) {
+    provider.setTargetAir(savedTarget.toInt());
   }
+}
+
 
   void _addDrink(double amount, DateTime time) {
     setState(() {
@@ -174,12 +186,6 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
   void addAutoDrink(double amount) {
     final now = DateTime.now();
     _addDrink(amount, now);
-  }
-
-  void setTarget(double newTarget) {
-    setState(() {
-      _goal = newTarget;
-    });
   }
 
   void _editDrink(int index) async {
@@ -210,7 +216,8 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
 
   @override
   void dispose() {
-    _timer.cancel();
+    _sliderTimer.cancel();
+    _cleanupTimer.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -218,177 +225,196 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                ClipPath(
-                  clipper: WaveClipper(),
-                  child: Container(height: 200, color: Colors.lightBlue[100]),
-                ),
-                ClipPath(
-                  clipper: WaveClipper(),
-                  child: Container(height: 180, color: Colors.lightBlue[300]),
-                ),
-                ClipPath(
-                  clipper: WaveClipper(),
-                  child: Container(height: 160, color: Colors.blue),
-                ),
-                Positioned(
-                  top: 60,
-                  left: 16,
-                  right: 16,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Consumer<UserProvider>(
-                          builder: (context, userProvider, child) {
-                            final user = userProvider.user;
-                            return Text(
-                              'Hi, ${user?.name ?? "User"}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          },
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Gimana kabar kamu hari ini?',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 180,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: _images.length,
-                      onPageChanged: (i) => setState(() => _currentPage = i),
-                      itemBuilder: (context, i) => Card(
-                        elevation: 6,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.asset(_images[i], fit: BoxFit.cover),
-                        ),
+      body: Column(
+        children: [
+          Stack(
+            children: [
+              ClipPath(
+                clipper: WaveClipper(),
+                child: Container(height: 200, color: Colors.lightBlue[100]),
+              ),
+              ClipPath(
+                clipper: WaveClipper(),
+                child: Container(height: 180, color: Colors.lightBlue[300]),
+              ),
+              ClipPath(
+                clipper: WaveClipper(),
+                child: Container(height: 160, color: Colors.blue),
+              ),
+              Positioned(
+                top: 60,
+                left: 16,
+                right: 16,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Consumer<UserProvider>(
+                        builder: (context, userProvider, child) {
+                          final user = userProvider.user;
+                          return Text(
+                            'Hi, ${user?.name ?? "User"}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
                       ),
-                    ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Gimana kabar kamu hari ini?',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 10),
-                  CircularPercentIndicator(
-                    radius: 100.0,
-                    lineWidth: 15.0,
-                    percent: (_goal == 0)
-                        ? 0
-                        : (_progress / _goal).clamp(0.0, 1.0),
-                    center: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${_progress.toInt()} ml',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 180,
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemCount: _images.length,
+                        onPageChanged: (i) => setState(() => _currentPage = i),
+                        itemBuilder: (context, i) => Card(
+                          elevation: 6,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(_images[i], fit: BoxFit.cover),
                           ),
                         ),
-                        Text(
-                          'dari ${_goal.toInt()} ml',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.grey[300]!,
-                    progressColor: Colors.blueAccent,
-                    circularStrokeCap: CircularStrokeCap.round,
-                  ),
-                  SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    icon: Icon(Icons.local_drink),
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => AddDrinkScreen()),
-                      );
-                      if (result != null)
-                        _addDrink(result['amount'], result['time']);
-                    },
-                    label: Text('Tambah Minum'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                  ),
-                  SizedBox(height: 20),
-                  _logs.isEmpty
-                      ? Center(child: Text('Belum ada catatan minum'))
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          itemCount: _logs.length,
-                          separatorBuilder: (_, __) => SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final log = _logs[index];
-                            return Card(
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                title: Text('${log['amount']} ml'),
-                                subtitle: Text('${log['time']}'),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.edit,
-                                        color: Colors.orange,
-                                      ),
-                                      onPressed: () => _editDrink(index),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.delete,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () => _deleteDrink(index),
-                                    ),
-                                  ],
+                    SizedBox(height: 10),
+                    Consumer<IntensitasProvider>(
+                      builder: (context, provider, _) {
+                        final goal = provider.targetAir?.toDouble() ?? 0.0;
+                        final progress = (_progress / (goal == 0 ? 1 : goal)).clamp(0.0, 1.0);
+
+                        return TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0.0, end: progress),
+                          duration: Duration(milliseconds: 800),
+                          builder: (context, value, _) => Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox(
+                                height: 160,
+                                width: 160,
+                                child: CircularProgressIndicator(
+                                  value: value,
+                                  strokeWidth: 12,
+                                  backgroundColor: Colors.grey[300],
+                                  color: Colors.blueAccent,
                                 ),
                               ),
-                            );
-                          },
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '${_progress.toInt()} ml',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    "${goal.toInt()} ml / hari",
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.local_drink),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => AddDrinkScreen()),
+                        );
+                        if (result != null) {
+                          _addDrink(result['amount'], result['time']);
+                        }
+                      },
+                      label: Text('Tambah Minum'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
-                ],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    _logs.isEmpty
+                        ? Center(child: Text('Belum ada catatan minum'))
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            itemCount: _logs.length,
+                            separatorBuilder: (_, __) => SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final log = _logs[index];
+                              return Card(
+                                elevation: 4,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: ListTile(
+                                  title: Text('${log['amount']} ml'),
+                                  subtitle: Text('${log['time']}'),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.edit,
+                                          color: Colors.orange,
+                                        ),
+                                        onPressed: () => _editDrink(index),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.delete,
+                                          color: Colors.red,
+                                        ),
+                                        onPressed: () => _deleteDrink(index),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

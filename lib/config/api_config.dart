@@ -1,6 +1,6 @@
 class ApiConfig {
   // Base URL API (Ganti dengan URL backend-mu)
-  static const String baseUrl = 'https://da48-36-69-117-160.ngrok-free.app/api';
+  static const String baseUrl = 'https://6b36e71c2e32.ngrok-free.app/api';
 
   // 🔐 AUTH (Login & Register)
   static String get login => '$baseUrl/auth/login';

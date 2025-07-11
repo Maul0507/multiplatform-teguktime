@@ -80,7 +80,7 @@ class UserService {
 
     if (token != null) {
       await http.post(
-        Uri.parse('$baseUrl/logout'),
+        Uri.parse('$baseUrl/auth/logout'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

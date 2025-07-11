@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:teguk_time/providers/intensitas_provider.dart';
+import 'package:teguk_time/providers/schedules_provider.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 
@@ -59,12 +62,29 @@ class UserProvider with ChangeNotifier {
   }
 
   // 🚪 Logout
-  Future<void> logout() async {
-    await _userService.logout();
-    _user = null;
-    _token = null;
-    notifyListeners();
+ Future<int?> getSavedIntensitasId() async {
+  final prefs = await SharedPreferences.getInstance();
+  final intensitasId = prefs.getInt('intensitasId');
+
+  if (intensitasId == null || intensitasId == -1) {
+    return null; // Anggap tidak ada data
   }
+
+  return intensitasId;
+}
+
+Future<void> logout() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setInt('intensitasId', -1); // ✅ Pastikan pakai await
+  await prefs.setDouble('dailyTarget', 0.0); // juga ini kalau perlu reset
+
+  _user = null;
+  _token = null;
+  notifyListeners();
+}
+
+
+
 
   // ✅ Cek login status dan load user serta token
   Future<void> checkLoginStatus() async {

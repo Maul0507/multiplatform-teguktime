@@ -3,20 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Providers
-import 'providers/user_provider.dart';
-import 'providers/artikel_provider.dart';
-import 'providers/intensitas_provider.dart';
-import 'providers/schedules_provider.dart';
-
 // Views
-import 'views/login_screen.dart';
 import 'views/add_drink_screen.dart';
+import 'views/login_screen.dart';
 import 'views/register_screen.dart';
 import 'views/intensitas_screen.dart';
 import 'views/riwayat_screen.dart';
 import 'views/profile_screen.dart';
 import 'views/wave_clipper.dart';
+
+// Providers
+import 'providers/user_provider.dart';
+import 'providers/artikel_provider.dart';
+import 'providers/intensitas_provider.dart';
+import 'providers/schedules_provider.dart';
 
 void main() {
   runApp(
@@ -71,10 +71,11 @@ class _BottomNavControllerState extends State<BottomNavController> {
             listen: false,
           );
           final target = intensitasProvider.targetAir;
-          print("ini target $target");
+          final id = intensitasProvider.intensitasId;
 
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setDouble('dailyTarget', target!.toDouble());
+          if (target != null) await prefs.setDouble('dailyTarget', target.toDouble());
+          if (id != null) await prefs.setInt('intensitasId', id);
         },
       ),
       RiwayatScreen(),
@@ -121,22 +122,14 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
     'assets/images/slide3.png',
   ];
 
- @override
-void initState() {
-  super.initState();
-  _startSlider();
-  _removeExpiredLogs();
-  _cleanupTimer = Timer.periodic(
-    Duration(minutes: 1),
-    (_) => _removeExpiredLogs(),
-  );
-  _loadSavedTarget(); // Pindah ke sini
-}
-
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
+    _startSlider();
+    _removeExpiredLogs();
+    _cleanupTimer = Timer.periodic(Duration(minutes: 1), (_) => _removeExpiredLogs());
     _loadSavedTarget();
+    _loadScheduleFromBackend();
   }
 
   void _startSlider() {
@@ -152,66 +145,48 @@ void initState() {
 
   void _removeExpiredLogs() {
     final now = DateTime.now();
+    if (!mounted) return;
     setState(() {
       _logs.removeWhere((log) {
         final logTime = log['time'] as DateTime;
-        final isToday = logTime.day == now.day &&
-            logTime.month == now.month &&
-            logTime.year == now.year;
-        final isPast = logTime.isBefore(now);
-        return isToday && isPast;
+        return logTime.day == now.day &&
+               logTime.month == now.month &&
+               logTime.year == now.year &&
+               logTime.isBefore(now);
       });
       _progress = _logs.fold(0.0, (sum, log) => sum + log['amount']);
     });
   }
 
   void _loadSavedTarget() async {
-  final provider = Provider.of<IntensitasProvider>(context, listen: false);
-  final prefs = await SharedPreferences.getInstance();
-  final savedTarget = prefs.getDouble('dailyTarget');
-  print('Loaded target: $savedTarget');
-  if (savedTarget != null) {
-    provider.setTargetAir(savedTarget.toInt());
-  }
-}
-
-
-  void _addDrink(double amount, DateTime time) {
-    setState(() {
-      _logs.add({'amount': amount, 'time': time});
-      _progress += amount;
-    });
+    final provider = Provider.of<IntensitasProvider>(context, listen: false);
+    final prefs = await SharedPreferences.getInstance();
+    final savedTarget = prefs.getDouble('dailyTarget');
+    if (!mounted) return;
+    if (savedTarget != null) provider.setTargetAir(savedTarget.toInt());
   }
 
-  void addAutoDrink(double amount) {
-    final now = DateTime.now();
-    _addDrink(amount, now);
-  }
-
-  void _editDrink(int index) async {
-    final log = _logs[index];
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddDrinkScreen(
-          editLog: {'amount': log['amount'], 'time': log['time']},
-        ),
-      ),
-    );
-    if (result != null) {
+  void _loadScheduleFromBackend() async {
+    final prefs = await SharedPreferences.getInstance();
+    final intensitasId = prefs.getInt('intensitasId');
+    if (intensitasId != null) {
+      final schedulesProvider = Provider.of<SchedulesProvider>(context, listen: false);
+      await schedulesProvider.fetchSchedulesByIntensitasId(intensitasId);
+      final loaded = schedulesProvider.schedules;
+      if (!mounted) return;
       setState(() {
-        _progress -= _logs[index]['amount'];
-        _logs[index] = result;
-        _progress += result['amount'];
+        _logs = loaded.map((e) {
+          final now = DateTime.now();
+          final parts = e.scheduleTime.split(':');
+          final scheduledTime = DateTime(now.year, now.month, now.day, int.parse(parts[0]), int.parse(parts[1]));
+          return {
+            'amount': e.volumeMl.toDouble(),
+            'time': scheduledTime,
+          };
+        }).toList();
+        _progress = _logs.fold(0.0, (sum, log) => sum + log['amount']);
       });
     }
-  }
-
-  void _deleteDrink(int index) {
-    setState(() {
-      _progress -= _logs[index]['amount'];
-      _logs.removeAt(index);
-    });
   }
 
   @override
@@ -302,7 +277,8 @@ void initState() {
                     Consumer<IntensitasProvider>(
                       builder: (context, provider, _) {
                         final goal = provider.targetAir?.toDouble() ?? 0.0;
-                        final progress = (_progress / (goal == 0 ? 1 : goal)).clamp(0.0, 1.0);
+                        final progress = (_progress / (goal == 0 ? 1 : goal))
+                            .clamp(0.0, 1.0);
 
                         return TweenAnimationBuilder<double>(
                           tween: Tween<double>(begin: 0.0, end: progress),
@@ -350,10 +326,62 @@ void initState() {
                       onPressed: () async {
                         final result = await Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => AddDrinkScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => AddDrinkScreen(maxAmount: 80),
+                          ),
                         );
+
+                        if (!mounted) return;
+
                         if (result != null) {
-                          _addDrink(result['amount'], result['time']);
+                          final amount = result['amount'] as double;
+                          final time = result['time'] as DateTime;
+
+                          final formattedTime =
+                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+                          final schedulesProvider =
+                              Provider.of<SchedulesProvider>(
+                                context,
+                                listen: false,
+                              );
+                          final intensitasProvider =
+                              Provider.of<IntensitasProvider>(
+                                context,
+                                listen: false,
+                              );
+                          final intensitasId = await intensitasProvider
+                              .getSavedIntensitasId();
+
+                          if (!mounted) return;
+
+                          if (intensitasId != null) {
+                            print('✅ Memulai addSchedule ke backend...');
+                            print('  intensitasId: $intensitasId');
+                            print('  scheduleTime: $formattedTime');
+                            print('  volumeMl: ${amount.toInt()}');
+
+                            await schedulesProvider.addSchedule(
+                              context: context,
+                              intensitasId: intensitasId,
+                              scheduleTime: formattedTime,
+                              volumeMl: amount.toInt(),
+                            );
+
+                            print('✅ Jadwal berhasil dikirim ke backend.');
+
+                            if (!mounted) return;
+                            // _addDrink(amount, time);
+                          } else {
+                            print(
+                              '❌ intensitasId tidak ditemukan di SharedPreferences.',
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('intensitasId tidak ditemukan'),
+                              ),
+                            );
+                          }
                         }
                       },
                       label: Text('Tambah Minum'),
@@ -394,14 +422,14 @@ void initState() {
                                           Icons.edit,
                                           color: Colors.orange,
                                         ),
-                                        onPressed: () => _editDrink(index),
+                                        onPressed: (){},
                                       ),
                                       IconButton(
                                         icon: Icon(
                                           Icons.delete,
                                           color: Colors.red,
                                         ),
-                                        onPressed: () => _deleteDrink(index),
+                                        onPressed: () {},
                                       ),
                                     ],
                                   ),

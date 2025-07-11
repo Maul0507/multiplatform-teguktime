@@ -4,7 +4,7 @@ import 'wave_clipper.dart'; // Pastikan file WaveClipper terhubung.
 class AddDrinkScreen extends StatefulWidget {
   final Map<String, dynamic>? editLog;
 
-  AddDrinkScreen({this.editLog});
+  AddDrinkScreen({this.editLog, required num maxAmount});
 
   @override
   _AddDrinkScreenState createState() => _AddDrinkScreenState();

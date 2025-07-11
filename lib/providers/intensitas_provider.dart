@@ -17,16 +17,17 @@ class IntensitasProvider with ChangeNotifier {
   IntensitasModel? get selected => _selected;
   bool get isLoading => _isLoading;
 
-void setTargetAir(int target) async {
+  get intensitasId => null;
+
+Future<void> setTargetAir(int target) async {
   _targetAir = target;
   notifyListeners();
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.setDouble('dailyTarget', target.toDouble());
 
-  print('Saved target: $target'); // Tambahan debug
+  print('Saved target: $target');
 }
-
 
 
   Future<void> fetchIntensitasList() async {
@@ -41,16 +42,41 @@ void setTargetAir(int target) async {
     notifyListeners();
   }
 
-  Future<void> addIntensitas(IntensitasModel data) async {
+   Future<void> addIntensitas(IntensitasModel data) async {
     try {
       final newData = await _intensitasService.createIntensitas(data);
       _list.add(newData);
+
+      // Simpan target air
       _targetAir = newData.targetAir.toInt();
+
+      // Simpan ID intensitas ke SharedPreferences
+      if (newData.id != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(' ', newData.id!);
+        print("✅ ID intensitas disimpan: ${newData.id}");
+      } else {
+        print("⚠️ Gagal menyimpan ID karena null.");
+      }
+
       notifyListeners();
     } catch (e) {
-      throw Exception('Error addIntensitas: $e');
+      print("❌ Error saat menambahkan intensitas: $e");
+      rethrow;
     }
   }
+Future<int?> getSavedIntensitasId() async {
+  final prefs = await SharedPreferences.getInstance();
+  final intensitasId = prefs.getInt('intensitasId');
+
+  if (intensitasId == null || intensitasId == -1) {
+    return null; // anggap tidak ada data
+  }
+
+  return intensitasId;
+}
+
+
 
   /// ✅ Mengecek apakah user sudah mengisi intensitas hari ini
   Future<IntensitasModel?> getIntensitasHariIni(int userId) async {

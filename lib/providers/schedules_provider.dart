@@ -1,102 +1,88 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:teguk_time/providers/user_provider.dart';
 import '../models/schedules_model.dart';
 import '../services/schedules_service.dart';
 
-class SchedulesProvider with ChangeNotifier {
+class SchedulesProvider extends ChangeNotifier {
   final SchedulesService _service = SchedulesService();
+  List<ScheduleModel> _schedules = [];
 
-  List<SchedulesModel> _schedules = [];
-  bool _isLoading = false;
-  String? _error;
+  List<ScheduleModel> get schedules => _schedules;
 
-  List<SchedulesModel> get schedules => _schedules;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-
-  /// Ambil semua jadwal
-  Future<void> fetchSchedules() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+  Future<void> loadSchedules(int intensitasId) async {
     try {
-      _schedules = await _service.fetchSchedules();
-
-      // Urutkan berdasarkan waktu
-      _schedules.sort((a, b) => a.scheduleTime.compareTo(b.scheduleTime));
-    } catch (e) {
-      _error = 'Fetch failed: $e';
-      print(_error);
-    }
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  /// Tambah jadwal baru
-  Future<void> addSchedule(SchedulesModel schedule) async {
-    try {
-      final newSchedule = await _service.addSchedule(schedule);
-      _schedules.add(newSchedule);
-
-      // Urutkan ulang
-      _schedules.sort((a, b) => a.scheduleTime.compareTo(b.scheduleTime));
+      _schedules = await _service.getSchedulesByIntensitas(intensitasId);
       notifyListeners();
     } catch (e) {
-      _error = 'Add failed: $e';
-      print(_error);
+      print("Error saat loadSchedules: $e");
     }
   }
 
-  /// Update jadwal berdasarkan ID
-  Future<void> updateSchedule(SchedulesModel schedule) async {
-    try {
-      final updated = await _service.updateSchedule(schedule);
-      final index = _schedules.indexWhere((s) => s.id == schedule.id);
-      if (index != -1) {
-        _schedules[index] = updated;
-
-        // Urutkan ulang
-        _schedules.sort((a, b) => a.scheduleTime.compareTo(b.scheduleTime));
-        notifyListeners();
-      }
-    } catch (e) {
-      _error = 'Update failed: $e';
-      print(_error);
-    }
+   Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
   }
 
-  /// Hapus jadwal berdasarkan ID
-  Future<void> removeSchedule(int id) async {
+  // Future<void> addSchedule(ScheduleModel model) async {
+  //   try {
+  //     final newSchedule = await _service.addSchedule(model);
+  //     _schedules.add(newSchedule);
+  //     notifyListeners();
+  //   } catch (e) {
+  //     print("Error saat addSchedule: $e");
+  //   }
+  // }
+
+  Future<void> addSchedule({
+  required BuildContext context,
+  required int intensitasId,
+  required String scheduleTime,
+  required int volumeMl,
+}) async {
+  try {
+    print('🔁 Memulai request ke backend...');
+
+ final token = await _getToken();
+    final newSchedule = await _service.createSchedule(
+      token: token,
+      intensitasId: intensitasId,
+      scheduleTime: scheduleTime,
+      volumeMl: volumeMl,
+    );
+
+    print('✅ Respon backend: $newSchedule');
+    // _list.add(newSchedule);
+    notifyListeners();
+  } catch (e) {
+    print('❌ Gagal mengirim ke backend: $e');
+    rethrow;
+  }
+}
+
+  Future<void> deleteSchedule(int id) async {
     try {
       await _service.deleteSchedule(id);
-      _schedules.removeWhere((s) => s.id == id);
+      _schedules.removeWhere((item) => item.id == id);
       notifyListeners();
     } catch (e) {
-      _error = 'Delete failed: $e';
-      print(_error);
+      print("Error saat deleteSchedule: $e");
     }
   }
 
-  /// Dapatkan semua jadwal milik user tertentu
-  List<SchedulesModel> userSchedules(int userId) {
-    return _schedules.where((s) => s.userId == userId).toList();
-  }
+  Future<void> fetchSchedulesByIntensitasId(int intensitasId) async {
+    // _isLoading = true;
+    notifyListeners();
+final token = await _getToken();
+    try {
+      _schedules = await _service.getSchedulesByIntensitasId(intensitasId, token);
+    } catch (e) {
+      print('❌ Error: $e');
+      _schedules = [];
+    }
 
-  /// (Opsional) Dapatkan jadwal hanya untuk hari ini
-  List<SchedulesModel> todaySchedules(int userId) {
-    final today = DateTime.now();
-    return _schedules.where((s) {
-      return s.userId == userId &&
-          s.createdAt.year == today.year &&
-          s.createdAt.month == today.month &&
-          s.createdAt.day == today.day;
-    }).toList();
-  }
-
-  /// Kosongkan semua data (misal setelah logout)
-  void clearSchedules() {
-    _schedules.clear();
+    // _isLoading = false;
     notifyListeners();
   }
 }

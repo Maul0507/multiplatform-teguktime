@@ -36,7 +36,7 @@ class _IntensitasScreenState extends State<IntensitasScreen> {
   Future<void> _cekIntensitasHariIni() async {
     final intensitasProvider = Provider.of<IntensitasProvider>(context, listen: false);
     final data = await intensitasProvider.getIntensitasHariIni(userId);
-    if (data != null) {
+    if (data != null && mounted) {
       setState(() {
         lastSubmittedData = data;
         targetAir = data.targetAir;
@@ -44,41 +44,50 @@ class _IntensitasScreenState extends State<IntensitasScreen> {
     }
   }
 
-Future<void> _submitFromWidget(double target, IntensitasModel model) async {
-  final today = DateTime.now().toString().split(' ')[0]; // format YYYY-MM-DD
+  Future<void> _submitFromWidget(double target, IntensitasModel model) async {
+    final today = DateTime.now().toString().split(' ')[0]; // Format YYYY-MM-DD
 
-  if (lastSubmittedData?.tanggal == today) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text("Anda sudah mengisi intensitas hari ini."),
-    ));
-    return;
+    if (lastSubmittedData?.tanggal == today) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Anda sudah mengisi intensitas hari ini.")),
+        );
+      }
+      return;
+    }
+
+    try {
+      final intensitasProvider = Provider.of<IntensitasProvider>(context, listen: false);
+      await intensitasProvider.addIntensitas(model);
+      await intensitasProvider.setTargetAir(target.toInt());
+
+      if (mounted) {
+        setState(() {
+          lastSubmittedData = model;
+          targetAir = target;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan: $e')),
+        );
+      }
+    }
   }
 
-  try {
-    final intensitasProvider = Provider.of<IntensitasProvider>(context, listen: false);
-
-    await intensitasProvider.addIntensitas(model);
-
-    // ✅ Tambahkan ini agar target disimpan ke SharedPreferences
-    intensitasProvider.setTargetAir(target.toInt());
-
-    setState(() {
-      lastSubmittedData = model;
-      targetAir = target;
-    });
-
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Gagal menyimpan: $e')),
-    );
+  @override
+  void dispose() {
+    umurController.dispose();
+    beratController.dispose();
+    tinggiController.dispose();
+    super.dispose();
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Intensitas Aktivitas")),
+      appBar: AppBar(title: const Text("Intensitas Aktivitas")),
       body: lastSubmittedData != null
           ? _buildHasil(lastSubmittedData!)
           : IntensitasFormWidget(
@@ -87,8 +96,16 @@ Future<void> _submitFromWidget(double target, IntensitasModel model) async {
               tinggiController: tinggiController,
               selectedGender: selectedGender,
               selectedAktivitas: selectedAktivitas,
-              onChangedGender: (val) => setState(() => selectedGender = val),
-              onChangedAktivitas: (val) => setState(() => selectedAktivitas = val),
+              onChangedGender: (val) {
+                if (mounted) {
+                  setState(() => selectedGender = val);
+                }
+              },
+              onChangedAktivitas: (val) {
+                if (mounted) {
+                  setState(() => selectedAktivitas = val);
+                }
+              },
               userId: userId,
               onSubmit: _submitFromWidget,
             ),
@@ -109,31 +126,37 @@ Future<void> _submitFromWidget(double target, IntensitasModel model) async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Hasil Catatan Anda:", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text("Hasil Catatan Anda:", style: TextStyle(fontWeight: FontWeight.bold)),
             _row("Jenis Kelamin", data.jenisKelamin),
             _row("Umur", data.umur.toString()),
             _row("Berat", "${data.beratBadan} kg"),
             _row("Tinggi", "${data.tinggiBadan} cm"),
             _row("Aktivitas", data.aktivitas),
-            SizedBox(height: 20),
-            Text("Target Air Anda:", style: TextStyle(fontSize: 16)),
-            Text("${data.targetAir.toStringAsFixed(0)} ml / hari",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            SizedBox(height: 20),
-            Text("\uD83D\uDCA7 Pembagian Air Harian:", style: TextStyle(fontSize: 16)),
+            const SizedBox(height: 20),
+            const Text("Target Air Anda:", style: TextStyle(fontSize: 16)),
+            Text(
+              "${data.targetAir.toStringAsFixed(0)} ml / hari",
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            const Text("\uD83D\uDCA7 Pembagian Air Harian:", style: TextStyle(fontSize: 16)),
             Text("- 6 kali minum: $pembagian6 ml / sesi"),
             Text("- 8 kali minum: $pembagian8 ml / sesi"),
             Text("- 10 kali minum: $pembagian10 ml / sesi"),
-            SizedBox(height: 20),
-            Text("\uD83D\uDD53 Jadwal Minum (8x per hari):",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ...jadwal
-                .map((e) => Text("- ${e['waktu']}: ${e['jumlah']} ml"))
-                .toList(),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
+            const Text(
+              "\uD83D\uDD53 Jadwal Minum (8x per hari):",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            ...jadwal.map((e) => Text("- ${e['waktu']}: ${e['jumlah']} ml")).toList(),
+            const SizedBox(height: 20),
             TextButton(
-              onPressed: () => setState(() => lastSubmittedData = null),
-              child: Text("Tambah Lagi Besok"),
+              onPressed: () {
+                if (mounted) {
+                  setState(() => lastSubmittedData = null);
+                }
+              },
+              child: const Text("Tambah Lagi Besok"),
             ),
             TextButton(
               onPressed: () {
@@ -143,7 +166,7 @@ Future<void> _submitFromWidget(double target, IntensitasModel model) async {
                   Navigator.pop(context);
                 }
               },
-              child: Text("Kembali ke Beranda"),
+              child: const Text("Kembali ke Beranda"),
             ),
           ],
         ),
@@ -152,9 +175,18 @@ Future<void> _submitFromWidget(double target, IntensitasModel model) async {
   }
 
   List<Map<String, String>> generateJadwalMinum(double totalAir) {
-    final sesi = 8;
+    const sesi = 8;
     final jumlahPerSesi = (totalAir / sesi).round();
-    final waktu = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00", "21:00"];
+    final waktu = [
+      "07:00",
+      "09:00",
+      "11:00",
+      "13:00",
+      "15:00",
+      "17:00",
+      "19:00",
+      "21:00"
+    ];
     return waktu.map((jam) => {"waktu": jam, "jumlah": "$jumlahPerSesi"}).toList();
   }
 

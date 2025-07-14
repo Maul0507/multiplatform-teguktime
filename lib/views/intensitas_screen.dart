@@ -118,7 +118,7 @@ class _IntensitasScreenState extends State<IntensitasScreen> {
     final pembagian8 = (total / 8).round();
     final pembagian10 = (total / 10).round();
 
-    final jadwal = generateJadwalMinum(total);
+    // final jadwal = generateJadwalMinum(total);
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -144,20 +144,20 @@ class _IntensitasScreenState extends State<IntensitasScreen> {
             Text("- 8 kali minum: $pembagian8 ml / sesi"),
             Text("- 10 kali minum: $pembagian10 ml / sesi"),
             const SizedBox(height: 20),
-            const Text(
-              "\uD83D\uDD53 Jadwal Minum (8x per hari):",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            ...jadwal.map((e) => Text("- ${e['waktu']}: ${e['jumlah']} ml")).toList(),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () {
-                if (mounted) {
-                  setState(() => lastSubmittedData = null);
-                }
-              },
-              child: const Text("Tambah Lagi Besok"),
-            ),
+            // const Text(
+            //   "\uD83D\uDD53 Jadwal Minum (8x per hari):",
+            //   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            // ),
+            // ...jadwal.map((e) => Text("- ${e['waktu']}: ${e['jumlah']} ml")).toList(),
+            // const SizedBox(height: 20),
+            // TextButton(
+            //   onPressed: () {
+            //     if (mounted) {
+            //       setState(() => lastSubmittedData = null);
+            //     }
+            //   },
+            //   child: const Text("Tambah Lagi Besok"),
+            // ),
             TextButton(
               onPressed: () {
                 if (widget.onReturnToHome != null) {
@@ -174,21 +174,21 @@ class _IntensitasScreenState extends State<IntensitasScreen> {
     );
   }
 
-  List<Map<String, String>> generateJadwalMinum(double totalAir) {
-    const sesi = 8;
-    final jumlahPerSesi = (totalAir / sesi).round();
-    final waktu = [
-      "07:00",
-      "09:00",
-      "11:00",
-      "13:00",
-      "15:00",
-      "17:00",
-      "19:00",
-      "21:00"
-    ];
-    return waktu.map((jam) => {"waktu": jam, "jumlah": "$jumlahPerSesi"}).toList();
-  }
+  // List<Map<String, String>> generateJadwalMinum(double totalAir) {
+  //   const sesi = 8;
+  //   final jumlahPerSesi = (totalAir / sesi).round();
+  //   final waktu = [
+  //     "07:00",
+  //     "09:00",
+  //     "11:00",
+  //     "13:00",
+  //     "15:00",
+  //     "17:00",
+  //     "19:00",
+  //     "21:00"
+  //   ];
+  //   return waktu.map((jam) => {"waktu": jam, "jumlah": "$jumlahPerSesi"}).toList();
+  // }
 
   Widget _row(String label, String? value) {
     return Padding(

@@ -61,15 +61,17 @@ class SchedulesProvider extends ChangeNotifier {
   }
 }
 
-  Future<void> deleteSchedule(int id) async {
+ Future<void> deleteSchedule(int id) async {
     try {
+      print('Menghapus id: $id'); // ⬅️ DEBUG
       await _service.deleteSchedule(id);
       _schedules.removeWhere((item) => item.id == id);
       notifyListeners();
     } catch (e) {
       print("Error saat deleteSchedule: $e");
     }
-  }
+ }
+
 
   Future<void> fetchSchedulesByIntensitasId(int intensitasId) async {
     // _isLoading = true;

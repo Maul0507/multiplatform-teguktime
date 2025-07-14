@@ -74,7 +74,8 @@ class _BottomNavControllerState extends State<BottomNavController> {
           final id = intensitasProvider.intensitasId;
 
           final prefs = await SharedPreferences.getInstance();
-          if (target != null) await prefs.setDouble('dailyTarget', target.toDouble());
+          if (target != null)
+            await prefs.setDouble('dailyTarget', target.toDouble());
           if (id != null) await prefs.setInt('intensitasId', id);
         },
       ),
@@ -92,7 +93,10 @@ class _BottomNavControllerState extends State<BottomNavController> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.opacity), label: 'Intensitas'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.opacity),
+            label: 'Intensitas',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Riwayat'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
@@ -117,9 +121,10 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
   late Timer _cleanupTimer;
 
   final List<String> _images = [
-    'assets/images/slide1.png',
-    'assets/images/slide2.png',
-    'assets/images/slide3.png',
+    'assets/images/slide6.jpg',
+    'assets/images/slide7.jpg',
+    'assets/images/slide8.jpg',
+    // 'assets/images/slide3.png',
   ];
 
   @override
@@ -127,7 +132,10 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
     super.initState();
     _startSlider();
     _removeExpiredLogs();
-    _cleanupTimer = Timer.periodic(Duration(minutes: 1), (_) => _removeExpiredLogs());
+    _cleanupTimer = Timer.periodic(
+      Duration(minutes: 1),
+      (_) => _removeExpiredLogs(),
+    );
     _loadSavedTarget();
     _loadScheduleFromBackend();
   }
@@ -150,9 +158,9 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
       _logs.removeWhere((log) {
         final logTime = log['time'] as DateTime;
         return logTime.day == now.day &&
-               logTime.month == now.month &&
-               logTime.year == now.year &&
-               logTime.isBefore(now);
+            logTime.month == now.month &&
+            logTime.year == now.year &&
+            logTime.isBefore(now);
       });
       _progress = _logs.fold(0.0, (sum, log) => sum + log['amount']);
     });
@@ -170,7 +178,10 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
     final prefs = await SharedPreferences.getInstance();
     final intensitasId = prefs.getInt('intensitasId');
     if (intensitasId != null) {
-      final schedulesProvider = Provider.of<SchedulesProvider>(context, listen: false);
+      final schedulesProvider = Provider.of<SchedulesProvider>(
+        context,
+        listen: false,
+      );
       await schedulesProvider.fetchSchedulesByIntensitasId(intensitasId);
       final loaded = schedulesProvider.schedules;
       if (!mounted) return;
@@ -178,11 +189,14 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
         _logs = loaded.map((e) {
           final now = DateTime.now();
           final parts = e.scheduleTime.split(':');
-          final scheduledTime = DateTime(now.year, now.month, now.day, int.parse(parts[0]), int.parse(parts[1]));
-          return {
-            'amount': e.volumeMl.toDouble(),
-            'time': scheduledTime,
-          };
+          final scheduledTime = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+          );
+          return {'amount': e.volumeMl.toDouble(), 'time': scheduledTime};
         }).toList();
         _progress = _logs.fold(0.0, (sum, log) => sum + log['amount']);
       });
@@ -200,6 +214,21 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.blue,
+        toolbarHeight: 28,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white,),
+            
+            onPressed: () {
+              // final authProvider =
+              //     Provider.of<UserProvider>(context, listen: false);
+              _loadScheduleFromBackend();
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Stack(
@@ -398,46 +427,82 @@ class WaterReminderScreenState extends State<WaterReminderScreen> {
                     ),
                     SizedBox(height: 20),
                     _logs.isEmpty
-                        ? Center(child: Text('Belum ada catatan minum'))
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            physics: NeverScrollableScrollPhysics(),
-                            itemCount: _logs.length,
-                            separatorBuilder: (_, __) => SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final log = _logs[index];
-                              return Card(
-                                elevation: 4,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: ListTile(
-                                  title: Text('${log['amount']} ml'),
-                                  subtitle: Text('${log['time']}'),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.edit,
-                                          color: Colors.orange,
-                                        ),
-                                        onPressed: (){},
-                                      ),
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.delete,
-                                          color: Colors.red,
-                                        ),
-                                        onPressed: () {},
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+  ? Center(child: Text('Belum ada catatan minum'))
+  : Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        
+        Text('Catatan minum hari ini:', style: TextStyle(fontWeight: FontWeight.bold)),
+        Consumer<SchedulesProvider>(
+          builder: (context, schedulesProvider, _) {
+            final schedules = schedulesProvider.schedules;
+
+            if (schedules.isEmpty) {
+              return Center(child: Text('Belum ada catatan minum ditambakan'));
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: schedules.length,
+              itemBuilder: (context, index) {
+                final schedule = schedules[index];
+
+                return Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    title: Text('${schedule.volumeMl} ml'),
+                    subtitle: Text('Waktu: ${schedule.scheduleTime}'),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text('Konfirmasi'),
+                            content: Text('Yakin ingin menghapus jadwal ini?'),
+                            actions: [
+                              TextButton(
+                                child: Text('Batal'),
+                                onPressed: () => Navigator.pop(context, false),
+                              ),
+                              TextButton(
+                                child: Text('Hapus'),
+                                onPressed: () => Navigator.pop(context, true),
+                              ),
+                            ],
                           ),
-                  ],
+                        );
+
+                        if (confirm == true) {
+                          print('Menghapus id: ${schedule.id}');
+                          try {
+                            final provider = Provider.of<SchedulesProvider>(context, listen: false);
+                            await provider.deleteSchedule(schedule.id);
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Jadwal berhasil dihapus')),
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Gagal menghapus jadwal: $e')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    )],
+
                 ),
               ),
             ),

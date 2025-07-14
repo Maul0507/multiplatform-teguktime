@@ -2,27 +2,19 @@ import 'package:flutter/material.dart';
 import 'wave_clipper.dart';
 
 class DetailRiwayatScreen extends StatelessWidget {
-  final Map<String, String> riwayat;
+  final Map<String, dynamic> riwayat;
 
   DetailRiwayatScreen({required this.riwayat});
 
-  // Contoh data jadwal bisa kamu ganti jadi dinamis nanti
-  final List<Map<String, String>> jadwal = [
-    {'waktu': '08:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-    {'waktu': '10:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-    {'waktu': '12:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-    {'waktu': '14:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-    {'waktu': '16:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-    {'waktu': '18:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-    {'waktu': '20:00', 'jumlah': '300 ml', 'tanggal': '17 Juni 2025'},
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final List<dynamic> jadwal = riwayat['schedules'] ?? [];
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
         children: [
+          // Header bergelombang
           Stack(
             children: [
               ClipPath(
@@ -78,10 +70,10 @@ class DetailRiwayatScreen extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 12),
-                _buildDetailRow("Jenis Kelamin", riwayat['jenisKelamin'] ?? 'N/A'),
-                _buildDetailRow("Umur", riwayat['umur'] ?? 'N/A'),
-                _buildDetailRow("Berat Badan", riwayat['berat'] ?? 'N/A'),
-                _buildDetailRow("Tinggi Badan", riwayat['tinggi'] ?? 'N/A'),
+                _buildDetailRow("Jenis Kelamin", riwayat['jenis_kelamin'] ?? 'N/A'),
+                _buildDetailRow("Umur", '${riwayat['umur'] ?? 'N/A'} tahun'),
+                _buildDetailRow("Berat Badan", '${riwayat['berat_badan'] ?? 'N/A'} kg'),
+                _buildDetailRow("Tinggi Badan", '${riwayat['tinggi_badan'] ?? 'N/A'} cm'),
                 _buildDetailRow("Intensitas", riwayat['aktivitas'] ?? 'N/A'),
                 SizedBox(height: 20),
                 Center(
@@ -99,7 +91,7 @@ class DetailRiwayatScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 10),
                         Text(
-                          "${riwayat['targetAir'] ?? '0'} ml/",
+                          "${riwayat['target_air'] ?? 0} ml/",
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -115,7 +107,7 @@ class DetailRiwayatScreen extends StatelessWidget {
             ),
           ),
 
-          // Jadwal minum harian
+          // Jadwal Minum Harian
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -129,6 +121,9 @@ class DetailRiwayatScreen extends StatelessWidget {
                       itemCount: jadwal.length,
                       itemBuilder: (context, index) {
                         final item = jadwal[index];
+                        final waktu = item['schedule_time'] ?? '-';
+                        final jumlah = item['volume_ml']?.toString() ?? '0';
+
                         return Container(
                           margin: EdgeInsets.only(bottom: 10),
                           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -152,15 +147,17 @@ class DetailRiwayatScreen extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(item['jumlah']!, style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    )),
-                                    Text(item['tanggal']!, style: TextStyle(color: Colors.white)),
+                                    Text('$jumlah ml',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        )),
+                                    Text('Waktu: $waktu',
+                                        style: TextStyle(color: Colors.white)),
                                   ],
                                 ),
                               ),
-                              Text(item['waktu']!,
+                              Text(waktu,
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),

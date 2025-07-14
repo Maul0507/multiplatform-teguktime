@@ -1,11 +1,11 @@
 class ScheduleModel {
-  final int? id;
+  final int id;
   final int intensitasId;
   final String scheduleTime;
   final int volumeMl;
 
   ScheduleModel({
-    this.id,
+    required this.id,
     required this.intensitasId,
     required this.scheduleTime,
     required this.volumeMl,
@@ -18,13 +18,5 @@ class ScheduleModel {
       scheduleTime: json['schedule_time'],
       volumeMl: json['volume_ml'],
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'intensitas_id': intensitasId,
-      'schedule_time': scheduleTime,
-      'volume_ml': volumeMl,
-    };
   }
 }

@@ -19,16 +19,15 @@ class IntensitasProvider with ChangeNotifier {
 
   get intensitasId => null;
 
-Future<void> setTargetAir(int target) async {
-  _targetAir = target;
-  notifyListeners();
+  Future<void> setTargetAir(int target) async {
+    _targetAir = target;
+    notifyListeners();
 
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setDouble('dailyTarget', target.toDouble());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('dailyTarget', target.toDouble());
 
-  print('Saved target: $target');
-}
-
+    print('Saved target: $target');
+  }
 
   Future<void> fetchIntensitasList() async {
     _isLoading = true;
@@ -42,7 +41,7 @@ Future<void> setTargetAir(int target) async {
     notifyListeners();
   }
 
-   Future<void> addIntensitas(IntensitasModel data) async {
+  Future<void> addIntensitas(IntensitasModel data) async {
     try {
       final newData = await _intensitasService.createIntensitas(data);
       _list.add(newData);
@@ -53,7 +52,8 @@ Future<void> setTargetAir(int target) async {
       // Simpan ID intensitas ke SharedPreferences
       if (newData.id != null) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt(' ', newData.id!);
+        await prefs.setInt('intensitasId', newData.id!);
+        print("ini adalah addd");
         print("✅ ID intensitas disimpan: ${newData.id}");
       } else {
         print("⚠️ Gagal menyimpan ID karena null.");
@@ -65,17 +65,16 @@ Future<void> setTargetAir(int target) async {
       rethrow;
     }
   }
-Future<int?> getSavedIntensitasId() async {
-  final prefs = await SharedPreferences.getInstance();
-  final intensitasId = prefs.getInt('intensitasId');
 
+  Future<int?> getSavedIntensitasId() async {
+  final prefs = await SharedPreferences.getInstance();
+  final intensitasId = prefs.getInt('intensitasId'); 
   if (intensitasId == null || intensitasId == -1) {
-    return null; // anggap tidak ada data
+    return null;
   }
 
   return intensitasId;
 }
-
 
 
   /// ✅ Mengecek apakah user sudah mengisi intensitas hari ini
@@ -100,5 +99,4 @@ Future<int?> getSavedIntensitasId() async {
     _selected = null;
     notifyListeners();
   }
-  
 }

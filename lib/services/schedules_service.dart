@@ -66,19 +66,22 @@ class SchedulesService {
 // }
 
 
-  Future<void> deleteSchedule(int id) async {
-    final token = await _getToken();
-    final response = await http.delete(
-      Uri.parse('$baseUrl/schedules/$id'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
+ Future<void> deleteSchedule(int id) async {
+  final token = await _getToken(); // metode ambil token auth
+  final response = await http.delete(
+    Uri.parse('https://6b36e71c2e32.ngrok-free.app/api/drink-schedules/$id'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
+    },
+  );
 
-    if (response.statusCode != 200) {
-      throw Exception('Gagal menghapus jadwal');
-    }
+  if (response.statusCode != 200) {
+    throw Exception('Gagal menghapus jadwal');
   }
+}
+
+
 
   Future<ScheduleModel?> createSchedule({
     required int intensitasId,
